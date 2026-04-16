@@ -1,0 +1,21 @@
+let privilegedRoles = dynamic(["Owner", "User Access Administrator", "Contributor"]);
+let baselineWindow = 14d;
+let detectionWindow = 1d;
+
+let baseline =
+AuditLogs
+| where TimeGenerated between (ago(baselineWindow) .. ago(detectionWindow))
+| where OperationName == "Add member to role"
+| extend Role = tostring(parse_json(TargetResources[0].modifiedProperties)[1].newValue)
+| summarize baselineCount = count() by InitiatedByUser = tostring(InitiatedBy.user.userPrincipalName);
+
+AuditLogs
+| where TimeGenerated > ago(detectionWindow)
+| where OperationName == "Add member to role"
+| extend InitiatedByUser = tostring(InitiatedBy.user.userPrincipalName)
+| extend Role = tostring(parse_json(TargetResources[0].modifiedProperties)[1].newValue)
+| where Role has_any (privilegedRoles)
+| join kind=leftouter baseline on InitiatedByUser
+| extend baselineCount = iff(isnull(baselineCount), 0, baselineCount)
+| where baselineCount < 3
+| project TimeGenerated, InitiatedByUser, Role, TargetResources, Result
