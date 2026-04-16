@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "apiVersion": "2022-11-01-preview",
+      "name": "ImpossibleTravelTokenReuse",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Impossible Travel with Token Reuse",
+        "severity": "High",
+        "enabled": true,
+        "query": "<PASTE KQL HERE>",
+        "queryFrequency": "PT1H",
+        "queryPeriod": "PT1H",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "description": "Detects token replay across geographically distant locations.",
+        "tactics": ["CredentialAccess", "DefenseEvasion"],
+        "techniques": ["T1550.001"]
+      }
+    }
+  ]
+}
