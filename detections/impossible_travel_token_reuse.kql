@@ -1,0 +1,17 @@
+let timeframe = 1h;
+let distanceThresholdKm = 2000;
+SigninLogs
+| where TimeGenerated > ago(timeframe)
+| where ResultType == 0
+| project UserPrincipalName, IPAddress, Location, TimeGenerated, DeviceDetail, AppDisplayName, ConditionalAccessStatus
+| sort by UserPrincipalName, TimeGenerated asc
+| extend PrevTime = prev(TimeGenerated), PrevIP = prev(IPAddress), PrevLocation = prev(Location)
+| where UserPrincipalName == prev(UserPrincipalName)
+| extend timeDiff = datetime_diff("minute", TimeGenerated, PrevTime)
+| where timeDiff < 60
+| extend geoDistance = geo_distance_2points(todynamic(Location).longitude, todynamic(Location).latitude,
+                                           todynamic(PrevLocation).longitude, todynamic(PrevLocation).latitude) / 1000
+| where geoDistance > distanceThresholdKm
+| where DeviceDetail.operatingSystem == prev(DeviceDetail.operatingSystem)
+| where AppDisplayName == prev(AppDisplayName)
+| project UserPrincipalName, IPAddress, PrevIP, geoDistance, timeDiff, AppDisplayName, DeviceDetail
