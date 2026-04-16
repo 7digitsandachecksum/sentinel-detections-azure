@@ -1,0 +1,19 @@
+let timeframe = 1h;
+let accessThreshold = 100;
+let baselineWindow = 7d;
+
+let baseline =
+StorageBlobLogs
+| where TimeGenerated between (ago(baselineWindow) .. ago(1d))
+| summarize avgAccess = avg(1.0) by CallerIpAddress, AccountName;
+
+StorageBlobLogs
+| where TimeGenerated > ago(timeframe)
+| where OperationName in ("GetBlob", "GetBlobProperties")
+| summarize accessCount = count(), distinctAccounts = dcount(AccountName)
+    by CallerIpAddress, UserAgentHeader, AuthenticationType
+| where accessCount > accessThreshold and distinctAccounts > 3
+| join kind=leftouter baseline on CallerIpAddress
+| extend baselineAccess = iff(isnull(avgAccess), 0.0, avgAccess)
+| where accessCount > baselineAccess * 5
+| project TimeGenerated=now(), CallerIpAddress, accessCount, distinctAccounts, UserAgentHeader, AuthenticationType
