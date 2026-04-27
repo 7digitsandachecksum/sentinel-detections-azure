@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2026-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "apiVersion": "2026-11-01-preview",
+      "name": "StorageExfiltrationAnomaly",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Azure Storage Exfiltration Anomaly",
+        "description": "Detects abnormal blob read activity across multiple storage accounts that may indicate bulk data exfiltration.",
+        "enabled": true,
+        "severity": "Medium",
+        "query": "let timeframe = 1h;\nlet accessThreshold = 100;\nlet baselineWindow = 7d;\nlet baseline = StorageBlobLogs | where TimeGenerated between (ago(baselineWindow) .. ago(1d)) | summarize avgAccess=count()/7 by CallerIpAddress;\nStorageBlobLogs | where TimeGenerated > ago(timeframe) | where OperationName in (\"GetBlob\",\"GetBlobProperties\") | summarize accessCount=count(), distinctAccounts=dcount(AccountName) by CallerIpAddress, UserAgentHeader, AuthenticationType | where accessCount > accessThreshold and distinctAccounts > 3 | join kind=leftouter baseline on CallerIpAddress | extend baselineAccess=iff(isnull(avgAccess),0.0,todouble(avgAccess)) | where accessCount > baselineAccess * 5 or baselineAccess == 0 | project TimeGenerated=now(), CallerIpAddress, accessCount, distinctAccounts, UserAgentHeader, AuthenticationType",
+        "queryFrequency": "PT1H",
+        "queryPeriod": "PT1H",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT2H",
+        "suppressionEnabled": false,
+        "tactics": [
+          "Exfiltration"
+        ],
+        "techniques": [
+          "T1041"
+        ],
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT6H",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        }
+      }
+    }
+  ]
+}
