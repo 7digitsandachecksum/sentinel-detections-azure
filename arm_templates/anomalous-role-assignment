@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2026-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "apiVersion": "2026-11-01-preview",
+      "name": "AnomalousRoleAssignment",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Anomalous Privileged Role Assignment",
+        "description": "Detects unusual Azure privileged role assignments performed by accounts that do not normally grant access.",
+        "enabled": true,
+        "severity": "High",
+        "query": "let privilegedRoles = dynamic([\"Owner\",\"User Access Administrator\",\"Contributor\"]);\nlet baselineWindow = 14d;\nlet detectionWindow = 1d;\nlet baseline = AuditLogs | where TimeGenerated between (ago(baselineWindow) .. ago(detectionWindow)) | where OperationName == \"Add member to role\" | extend Role = tostring(parse_json(TargetResources[0].modifiedProperties)[1].newValue) | summarize baselineCount=count() by InitiatedByUser=tostring(InitiatedBy.user.userPrincipalName);\nAuditLogs | where TimeGenerated > ago(detectionWindow) | where OperationName == \"Add member to role\" | extend InitiatedByUser=tostring(InitiatedBy.user.userPrincipalName) | extend Role=tostring(parse_json(TargetResources[0].modifiedProperties)[1].newValue) | where Role has_any (privilegedRoles) | join kind=leftouter baseline on InitiatedByUser | extend baselineCount=iff(isnull(baselineCount),0,baselineCount) | where baselineCount < 3 | project TimeGenerated, InitiatedByUser, Role, TargetResources, Result",
+        "queryFrequency": "PT1H",
+        "queryPeriod": "P1D",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT1H",
+        "suppressionEnabled": false,
+        "tactics": [
+          "Persistence",
+          "PrivilegeEscalation"
+        ],
+        "techniques": [
+          "T1098"
+        ],
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT6H",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        }
+      }
+    }
+  ]
+}
