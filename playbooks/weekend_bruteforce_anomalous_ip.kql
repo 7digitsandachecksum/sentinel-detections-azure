@@ -1,0 +1,37 @@
+let failedThreshold = 7;
+let weekendStartHour = 19;
+let weekendEndHour = 7;
+
+let weekendLogins =
+SigninLogs
+| where (
+    (dayofweek(TimeGenerated) == "Friday" and hourofday(TimeGenerated) >= weekendStartHour)
+    or (dayofweek(TimeGenerated) in ("Saturday","Sunday"))
+    or (dayofweek(TimeGenerated) == "Monday" and hourofday(TimeGenerated) < weekendEndHour)
+);
+
+let failedAttempts =
+weekendLogins
+| where ResultType != 0
+| summarize FailedCount=count(),
+            FailedIPs=make_set(IPAddress),
+            StartTime=min(TimeGenerated),
+            EndTime=max(TimeGenerated)
+            by UserPrincipalName
+| where FailedCount >= failedThreshold;
+
+let successfulAnomalous =
+weekendLogins
+| where ResultType == 0
+| summarize SuccessIPs=make_set(IPAddress) by UserPrincipalName;
+
+failedAttempts
+| join kind=inner successfulAnomalous on UserPrincipalName
+| extend NewIPCount = array_length(set_difference(SuccessIPs, FailedIPs))
+| where NewIPCount > 0
+| project UserPrincipalName,
+          FailedCount,
+          FailedIPs,
+          SuccessIPs,
+          StartTime,
+          EndTime
